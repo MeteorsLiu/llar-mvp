@@ -1,9 +1,11 @@
 package mvs
 
-import "github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
+import (
+	"github.com/MeteorsLiu/llarmvp"
+)
 
 type MvsVersion struct {
-	version.PackageVersion
+	llarmvp.Version
 	PackageName string
 }
 
@@ -16,13 +18,13 @@ type MvsReqs struct {
 }
 
 func (r *MvsReqs) Required(mod MvsVersion) ([]MvsVersion, error) {
-	if mod.Version == "" {
+	if mod.Ver == "" {
 		// Use the build list as it existed when r was constructed, not the current
 		// global build list.
 		return r.Roots, nil
 	}
 
-	if mod.Version == "none" {
+	if mod.Version.IsNone() {
 		return nil, nil
 	}
 

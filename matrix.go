@@ -1,6 +1,6 @@
-package matrix
+package llarmvp
 
-type PackageMatrix struct {
+type Matrix struct {
 	Require map[string][]string
 	Options map[string][]string
 }

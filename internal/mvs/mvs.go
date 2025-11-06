@@ -13,8 +13,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/MeteorsLiu/llarmvp"
 	"github.com/MeteorsLiu/llarmvp/internal/mvs/par"
-	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
 // A Reqs is the requirement graph on which Minimal Version Selection (MVS) operates.
@@ -41,7 +41,7 @@ type Reqs interface {
 	//
 	// Note that v1 < v2 can be written Max(v1, v2) != v1
 	// and similarly v1 <= v2 can be written Max(v1, v2) == v2.
-	Max(p string, v1, v2 version.PackageVersion) version.PackageVersion
+	Max(p string, v1, v2 llarmvp.Version) llarmvp.Version
 }
 
 // An UpgradeReqs is a Reqs that can also identify available upgrades.
@@ -92,7 +92,7 @@ func BuildList(targets []MvsVersion, reqs Reqs) ([]MvsVersion, error) {
 }
 
 func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVersion, error)) ([]MvsVersion, error) {
-	cmp := func(p string, v1, v2 version.PackageVersion) int {
+	cmp := func(p string, v1, v2 llarmvp.Version) int {
 		if !reqs.Max(p, v1, v2).Equal(v1) {
 			return -1
 		}
@@ -173,7 +173,7 @@ func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVer
 	list := g.BuildList()
 	if vs := list[:len(targets)]; !slices.Equal(vs, targets) {
 		// target.Version will be "" for modload, the main client of MVS.
-		// "" denotes the main module, which has no version. However, MVS treats
+		// "" denotes the main module, which has no llarmvp. However, MVS treats
 		// version strings as opaque, so "" is not a special value here.
 		// See golang.org/issue/31491, golang.org/issue/29773.
 		panic(fmt.Sprintf("mistake: chose versions %+v instead of targets %+v", vs, targets))
@@ -194,9 +194,9 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 	// that list came from a previous operation that paged
 	// in all the requirements, so there's no I/O to overlap now.
 
-	max := map[string]version.PackageVersion{}
+	max := map[string]llarmvp.Version{}
 	for _, m := range list {
-		max[m.PackageName] = m.PackageVersion
+		max[m.PackageName] = m.Version
 	}
 
 	// Compute postorder, cache requirements.
@@ -248,7 +248,7 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 		if haveBase[path] {
 			continue
 		}
-		m := MvsVersion{PackageName: path, PackageVersion: max[path]}
+		m := MvsVersion{PackageName: path, Version: max[path]}
 		min = append(min, m)
 		walk(m)
 		haveBase[path] = true
@@ -256,8 +256,8 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 	// Now the reverse postorder to bring in anything else.
 	for i := len(postorder) - 1; i >= 0; i-- {
 		m := postorder[i]
-		if !max[m.PackageName].Equal(m.PackageVersion) {
-			// Older version.
+		if !max[m.PackageName].Equal(m.Version) {
+			// Older llarmvp.
 			continue
 		}
 		if !have[m] {
@@ -272,7 +272,7 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 }
 
 // UpgradeAll returns a build list for the target module
-// in which every module is upgraded to its latest version.
+// in which every module is upgraded to its latest llarmvp.
 func UpgradeAll(target MvsVersion, reqs UpgradeReqs) ([]MvsVersion, error) {
 	return buildList([]MvsVersion{target}, reqs, func(m MvsVersion) (MvsVersion, error) {
 		if m.PackageName == target.PackageName {
@@ -297,21 +297,21 @@ func Upgrade(target MvsVersion, reqs UpgradeReqs, upgrade ...MvsVersion) ([]MvsV
 	}
 	list = append([]MvsVersion(nil), list...)
 
-	upgradeTo := make(map[string]version.PackageVersion, len(upgrade))
+	upgradeTo := make(map[string]llarmvp.Version, len(upgrade))
 	for _, u := range upgrade {
 		if !pathInList[u.PackageName] {
-			list = append(list, MvsVersion{PackageName: u.PackageName, PackageVersion: version.None})
+			list = append(list, MvsVersion{PackageName: u.PackageName, Version: llarmvp.None})
 		}
 		if prev, dup := upgradeTo[u.PackageName]; dup {
-			upgradeTo[u.PackageName] = reqs.Max(u.PackageName, prev, u.PackageVersion)
+			upgradeTo[u.PackageName] = reqs.Max(u.PackageName, prev, u.Version)
 		} else {
-			upgradeTo[u.PackageName] = u.PackageVersion
+			upgradeTo[u.PackageName] = u.Version
 		}
 	}
 
 	return buildList([]MvsVersion{target}, &override{target, list, reqs}, func(m MvsVersion) (MvsVersion, error) {
 		if v, ok := upgradeTo[m.PackageName]; ok {
-			return MvsVersion{PackageName: m.PackageName, PackageVersion: v}, nil
+			return MvsVersion{PackageName: m.PackageName, Version: v}, nil
 		}
 		return m, nil
 	})
@@ -338,13 +338,13 @@ func Downgrade(target MvsVersion, reqs DowngradeReqs, downgrade ...MvsVersion) (
 	}
 	list = list[1:] // remove target
 
-	max := make(map[string]version.PackageVersion)
+	max := make(map[string]llarmvp.Version)
 	for _, r := range list {
-		max[r.PackageName] = r.PackageVersion
+		max[r.PackageName] = r.Version
 	}
 	for _, d := range downgrade {
-		if v, ok := max[d.PackageName]; !ok || !reqs.Max(d.PackageName, v, d.PackageVersion).Equal(d.PackageVersion) {
-			max[d.PackageName] = d.PackageVersion
+		if v, ok := max[d.PackageName]; !ok || !reqs.Max(d.PackageName, v, d.Version).Equal(d.Version) {
+			max[d.PackageName] = d.Version
 		}
 	}
 
@@ -369,7 +369,7 @@ func Downgrade(target MvsVersion, reqs DowngradeReqs, downgrade ...MvsVersion) (
 			return
 		}
 		added[m] = true
-		if v, ok := max[m.PackageName]; ok && !reqs.Max(m.PackageName, m.PackageVersion, v).Equal(v) {
+		if v, ok := max[m.PackageName]; ok && !reqs.Max(m.PackageName, m.Version, v).Equal(v) {
 			// m would upgrade an existing dependency — it is not a strict downgrade,
 			// and because it was already present as a dependency, it could affect the
 			// behavior of other relevant packages.
@@ -410,7 +410,7 @@ List:
 			p, err := reqs.Previous(r)
 			if err != nil {
 				// This is likely a transient error reaching the repository,
-				// rather than a permanent error with the retrieved version.
+				// rather than a permanent error with the retrieved llarmvp.
 				//
 				// TODO(golang.org/issue/31730, golang.org/issue/30134):
 				// decode what to do based on the actual error.
@@ -420,8 +420,8 @@ List:
 			// included when iterating over prior versions using reqs.Previous.
 			// Insert it into the right place in the iteration.
 			// If v is excluded, p should be returned again by reqs.Previous on the next iteration.
-			if v := max[r.PackageName]; !reqs.Max(r.PackageName, v, r.PackageVersion).Equal(v) && !reqs.Max(r.PackageName, p.PackageVersion, v).Equal(p.PackageVersion) {
-				p.PackageVersion = v
+			if v := max[r.PackageName]; !reqs.Max(r.PackageName, v, r.Version).Equal(v) && !reqs.Max(r.PackageName, p.Version, v).Equal(p.Version) {
+				p.Version = v
 			}
 			if p.IsNone() {
 				continue List
@@ -455,7 +455,7 @@ List:
 	if err != nil {
 		return nil, err
 	}
-	actualVersion := make(map[string]string, len(actual))
+	actualVersion := make(map[string]llarmvp.Version, len(actual))
 	for _, m := range actual {
 		actualVersion[m.PackageName] = m.Version
 	}
@@ -463,7 +463,7 @@ List:
 	downgraded = downgraded[:0]
 	for _, m := range list {
 		if v, ok := actualVersion[m.PackageName]; ok {
-			downgraded = append(downgraded, MvsVersion{PackageName: m.PackageName, PackageVersion: version.PackageVersion{Version: v}})
+			downgraded = append(downgraded, MvsVersion{PackageName: m.PackageName, Version: v})
 		}
 	}
 

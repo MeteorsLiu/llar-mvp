@@ -8,12 +8,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
+	"github.com/MeteorsLiu/llarmvp"
 )
 
 // ModSort is like module.Sort but understands the "go" and "toolchain"
 // modules and their version ordering.
-func ModSort(cmp func(p string, v1, v2 version.PackageVersion) int, list []MvsVersion) {
+func ModSort(cmp func(p string, v1, v2 llarmvp.Version) int, list []MvsVersion) {
 	sort.Slice(list, func(i, j int) bool {
 		mi := list[i]
 		mj := list[j]
@@ -23,8 +23,8 @@ func ModSort(cmp func(p string, v1, v2 version.PackageVersion) int, list []MvsVe
 		// To help go.sum formatting, allow version/file.
 		// Compare semver prefix by semver  rules,
 		// file by string order.
-		vi := mi.Version
-		vj := mj.Version
+		vi := mi.Ver
+		vj := mj.Ver
 		var fi, fj string
 		if k := strings.Index(vi, "/"); k >= 0 {
 			vi, fi = vi[:k], vi[k:]
@@ -33,7 +33,7 @@ func ModSort(cmp func(p string, v1, v2 version.PackageVersion) int, list []MvsVe
 			vj, fj = vj[:k], vj[k:]
 		}
 		if vi != vj {
-			return cmp(mi.PackageName, mi.PackageVersion, mj.PackageVersion) < 0
+			return cmp(mi.PackageName, mi.Version, mj.Version) < 0
 		}
 		return fi < fj
 	})
