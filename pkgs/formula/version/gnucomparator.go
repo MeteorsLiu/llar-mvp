@@ -25,6 +25,13 @@ package version
 //	0 if a == b
 //	1 if a > b
 func Compare(a, b string) int {
+	if a == "none" && b != "none" {
+		return -1
+	} else if a != "none" && b == "none" {
+		return 1
+	} else if a == "none" && b == "none" {
+		return 0
+	}
 	return verrevcmp([]byte(a), []byte(b))
 }
 

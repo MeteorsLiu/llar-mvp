@@ -2,12 +2,15 @@ package ixgo
 
 import (
 	"fmt"
+	"go/ast"
 	"io/fs"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"unsafe"
 
-	"github.com/MeteorsLiu/llarmvp"
+	"github.com/MeteorsLiu/llarmvp/internal/deps/pkg"
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 	x "github.com/goplus/ixgo"
 
 	xbuild "github.com/goplus/ixgo/xgobuild"
@@ -15,11 +18,9 @@ import (
 
 var ErrNoFormulaFound = fmt.Errorf("failed to get formula: no formula found")
 
-const formulaRepo = "/Users/haolan/project/t1/llarformula"
-
 type packageKey struct {
 	PackageName string
-	llarmvp.Version
+	version.Version
 }
 
 type IXGoCompiler struct {
@@ -27,45 +28,53 @@ type IXGoCompiler struct {
 	runnerCache map[packageKey]*Runnable
 }
 
-type buildComparable interface {
+type formulaClassfile interface {
 	Main()
-	DoCompare(v1, v2 llarmvp.Version) int
-	FromVersion__0() llarmvp.Version
 }
 
 type Runnable struct {
-	Elem   any
-	Runner *x.Interp
+	Elem        any
+	Dir         string
+	Runner      *x.Interp
+	FromVersion version.Version
+	Comparator  func(a, b version.Version) int
 }
 
 func NewIXGoCompiler() *IXGoCompiler {
-	return &IXGoCompiler{ctx: x.NewContext(x.SupportMultipleInterp), runnerCache: make(map[packageKey]*Runnable)}
+	return &IXGoCompiler{
+		ctx:         x.NewContext(x.SupportMultipleInterp),
+		runnerCache: make(map[packageKey]*Runnable),
+	}
 }
 
-func (i *IXGoCompiler) formulaOf(packageName string, packageVersion llarmvp.Version) (runner *Runnable, err error) {
+func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Version) (runner *Runnable, err error) {
 	cacheKey := packageKey{packageName, packageVersion}
 	runner, ok := i.runnerCache[cacheKey]
 	if ok {
 		return
 	}
-	formulaRootDir := filepath.Join(formulaRepo, packageName)
+
+	formulaRootDir := pkg.PackagePathOf(packageName)
 
 	var suitableRunner *Runnable
-	maxCanBuild := llarmvp.None
+	maxCanBuild := version.None
 
-	err = filepath.WalkDir(formulaRootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
+	err = filepath.WalkDir(formulaRootDir, func(path string, d fs.DirEntry, err2 error) error {
+		if err2 != nil {
 			return err
 		}
 		if !strings.HasSuffix(path, "_llar.gox") {
 			return nil
 		}
-		source, err := xbuild.BuildDir(i.ctx, filepath.Dir(path))
+		formulaDir := filepath.Dir(path)
+
+		source, err := xbuild.BuildDir(i.ctx, formulaDir)
 		if err != nil {
 			return nil
 		}
 		pkg, err := i.ctx.LoadFile("main.go", source)
 		if err != nil {
+			fmt.Println(err)
 			return nil
 		}
 		interp, err := x.NewInterp(i.ctx, pkg)
@@ -73,31 +82,44 @@ func (i *IXGoCompiler) formulaOf(packageName string, packageVersion llarmvp.Vers
 			return nil
 		}
 
-		typ, ok := interp.GetType(structNameFrom(path))
+		typ, ok := interp.GetType(structNameOf(path))
 		if !ok {
 			panic("cannot find struct")
 		}
 
-		elem := reflect.New(typ).Interface()
+		val := reflect.New(typ)
+		elem := val.Elem()
 
-		comparableElem := elem.(buildComparable)
-		// init
-		comparableElem.Main()
+		val.Interface().(formulaClassfile).Main()
 
-		fromVersion := comparableElem.FromVersion__0()
+		fromVersion := valueOf(elem, "internalFromVersion").(version.Version)
+
+		comparator := valueOf(elem, "onCompareFn").(func(a, b version.Version) int)
 
 		var best bool
 
-		if comparableElem.DoCompare(packageVersion, fromVersion) >= 0 {
+		if comparator(packageVersion, fromVersion) >= 0 {
 			if maxCanBuild.IsNone() {
-				suitableRunner = &Runnable{Elem: elem, Runner: interp}
+				suitableRunner = &Runnable{
+					Elem:        elem,
+					Dir:         formulaDir,
+					Runner:      interp,
+					FromVersion: fromVersion,
+					Comparator:  comparator,
+				}
 				maxCanBuild = fromVersion
 				best = true
 				return nil
 			}
-			if comparableElem.DoCompare(fromVersion, maxCanBuild) >= 0 {
+			if comparator(fromVersion, maxCanBuild) >= 0 {
 				maxCanBuild = fromVersion
-				suitableRunner = &Runnable{Elem: elem, Runner: interp}
+				suitableRunner = &Runnable{
+					Elem:        elem,
+					Dir:         formulaDir,
+					Runner:      interp,
+					FromVersion: fromVersion,
+					Comparator:  comparator,
+				}
 				best = true
 			}
 		}
@@ -123,6 +145,17 @@ func init() {
 	xbuild.RegisterClassFileType("_llar.gox", "FormulaApp", nil, "github.com/MeteorsLiu/llarmvp")
 }
 
-func structNameFrom(path string) string {
+func structNameOf(path string) string {
 	return strings.TrimSuffix(filepath.Base(path), "_llar.gox")
+}
+
+func unexportValueOf(field reflect.Value) any {
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
+}
+
+func valueOf(elem reflect.Value, name string) any {
+	if ast.IsExported(name) {
+		return elem.FieldByName(name).Elem().Interface()
+	}
+	return unexportValueOf(elem.FieldByName(name))
 }

@@ -8,19 +8,19 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/MeteorsLiu/llarmvp"
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
 // Graph implements an incremental version of the MVS algorithm, with the
 // requirements pushed by the caller instead of pulled by the MVS traversal.
 type Graph struct {
-	cmp   func(p string, v1, v2 llarmvp.Version) int
+	cmp   func(p string, v1, v2 version.Version) int
 	roots []MvsVersion
 
 	required map[MvsVersion][]MvsVersion
 
 	isRoot   map[MvsVersion]bool        // contains true for roots and false for reachable non-roots
-	selected map[string]llarmvp.Version // path → version
+	selected map[string]version.Version // path → version
 }
 
 // NewGraph returns an incremental MVS graph containing only a set of root
@@ -28,13 +28,13 @@ type Graph struct {
 //
 // The caller must ensure that the root slice is not modified while the Graph
 // may be in use.
-func NewGraph(cmp func(p string, v1, v2 llarmvp.Version) int, roots []MvsVersion) *Graph {
+func NewGraph(cmp func(p string, v1, v2 version.Version) int, roots []MvsVersion) *Graph {
 	g := &Graph{
 		cmp:      cmp,
 		roots:    slices.Clip(roots),
 		required: make(map[MvsVersion][]MvsVersion),
 		isRoot:   make(map[MvsVersion]bool),
-		selected: make(map[string]llarmvp.Version),
+		selected: make(map[string]version.Version),
 	}
 
 	for _, m := range roots {
@@ -77,7 +77,6 @@ func (g *Graph) Require(m MvsVersion, reqs []MvsVersion) {
 		if _, ok := g.isRoot[dep]; !ok {
 			g.isRoot[dep] = false
 		}
-
 		if g.cmp(dep.PackageName, g.Selected(dep.PackageName), dep.Version) < 0 {
 			g.selected[dep.PackageName] = dep.Version
 		}
@@ -98,10 +97,10 @@ func (g *Graph) RequiredBy(m MvsVersion) (reqs []MvsVersion, ok bool) {
 // Selected returns the selected version of the given module path.
 //
 // If no version is selected, Selected returns version "none".
-func (g *Graph) Selected(path string) (version llarmvp.Version) {
+func (g *Graph) Selected(path string) version.Version {
 	v, ok := g.selected[path]
 	if !ok {
-		return llarmvp.None
+		return version.None
 	}
 	return v
 }
@@ -150,7 +149,7 @@ func (g *Graph) WalkBreadthFirst(f func(m MvsVersion)) {
 	var queue []MvsVersion
 	enqueued := make(map[MvsVersion]bool)
 	for _, m := range g.roots {
-		if m.Ver != "none" {
+		if !m.IsNone() {
 			queue = append(queue, m)
 			enqueued[m] = true
 		}
@@ -164,7 +163,7 @@ func (g *Graph) WalkBreadthFirst(f func(m MvsVersion)) {
 
 		reqs, _ := g.RequiredBy(m)
 		for _, r := range reqs {
-			if !enqueued[r] && r.Ver != "none" {
+			if !enqueued[r] && !r.IsNone() {
 				queue = append(queue, r)
 				enqueued[r] = true
 			}

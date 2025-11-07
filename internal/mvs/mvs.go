@@ -13,8 +13,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/MeteorsLiu/llarmvp"
 	"github.com/MeteorsLiu/llarmvp/internal/mvs/par"
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
 // A Reqs is the requirement graph on which Minimal Version Selection (MVS) operates.
@@ -41,7 +41,7 @@ type Reqs interface {
 	//
 	// Note that v1 < v2 can be written Max(v1, v2) != v1
 	// and similarly v1 <= v2 can be written Max(v1, v2) == v2.
-	Max(p string, v1, v2 llarmvp.Version) llarmvp.Version
+	Max(p string, v1, v2 version.Version) version.Version
 }
 
 // An UpgradeReqs is a Reqs that can also identify available upgrades.
@@ -92,7 +92,7 @@ func BuildList(targets []MvsVersion, reqs Reqs) ([]MvsVersion, error) {
 }
 
 func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVersion, error)) ([]MvsVersion, error) {
-	cmp := func(p string, v1, v2 llarmvp.Version) int {
+	cmp := func(p string, v1, v2 version.Version) int {
 		if !reqs.Max(p, v1, v2).Equal(v1) {
 			return -1
 		}
@@ -194,7 +194,7 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 	// that list came from a previous operation that paged
 	// in all the requirements, so there's no I/O to overlap now.
 
-	max := map[string]llarmvp.Version{}
+	max := map[string]version.Version{}
 	for _, m := range list {
 		max[m.PackageName] = m.Version
 	}
@@ -297,10 +297,10 @@ func Upgrade(target MvsVersion, reqs UpgradeReqs, upgrade ...MvsVersion) ([]MvsV
 	}
 	list = append([]MvsVersion(nil), list...)
 
-	upgradeTo := make(map[string]llarmvp.Version, len(upgrade))
+	upgradeTo := make(map[string]version.Version, len(upgrade))
 	for _, u := range upgrade {
 		if !pathInList[u.PackageName] {
-			list = append(list, MvsVersion{PackageName: u.PackageName, Version: llarmvp.None})
+			list = append(list, MvsVersion{PackageName: u.PackageName, Version: version.None})
 		}
 		if prev, dup := upgradeTo[u.PackageName]; dup {
 			upgradeTo[u.PackageName] = reqs.Max(u.PackageName, prev, u.Version)
@@ -338,7 +338,7 @@ func Downgrade(target MvsVersion, reqs DowngradeReqs, downgrade ...MvsVersion) (
 	}
 	list = list[1:] // remove target
 
-	max := make(map[string]llarmvp.Version)
+	max := make(map[string]version.Version)
 	for _, r := range list {
 		max[r.PackageName] = r.Version
 	}
@@ -455,7 +455,7 @@ List:
 	if err != nil {
 		return nil, err
 	}
-	actualVersion := make(map[string]llarmvp.Version, len(actual))
+	actualVersion := make(map[string]version.Version, len(actual))
 	for _, m := range actual {
 		actualVersion[m.PackageName] = m.Version
 	}

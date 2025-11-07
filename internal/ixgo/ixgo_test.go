@@ -3,18 +3,19 @@ package ixgo
 import (
 	"testing"
 
-	"github.com/MeteorsLiu/llarmvp"
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix"
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
 func TestFindFormula(t *testing.T) {
 	ixgo := NewIXGoCompiler()
 
-	runner, err := ixgo.formulaOf("DaveGamble/cJSON", llarmvp.Version{"1.7.18"})
+	runner, err := ixgo.FormulaOf("DaveGamble/cJSON", version.Version{"1.7.18"})
 	if err != nil {
 		t.Log(err)
 		return
 	}
 	runner.Elem.(interface {
-		DoBuild(mrx llarmvp.Matrix) (any, error)
-	}).DoBuild(llarmvp.Matrix{})
+		DoBuild(mrx matrix.Matrix) (any, error)
+	}).DoBuild(matrix.Matrix{})
 }

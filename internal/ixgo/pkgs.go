@@ -1,7 +1,9 @@
 package ixgo
 
-//go:generate qexp -outdir pkg github.com/MeteorsLiu/llarmvp
 //go:generate qexp -outdir pkg github.com/MeteorsLiu/llarmvp/pkgs/formula/gsh
+//go:generate qexp -outdir pkg github.com/MeteorsLiu/llarmvp
+//go:generate qexp -outdir pkg github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix
+//go:generate qexp -outdir pkg github.com/MeteorsLiu/llarmvp/pkgs/formula/version
 import (
 	_ "github.com/goplus/ixgo/pkg/archive/tar"
 	_ "github.com/goplus/ixgo/pkg/archive/zip"
@@ -170,4 +172,6 @@ import (
 
 	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp"
 	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp/pkgs/formula/gsh"
+	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix"
+	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )

@@ -1,9 +1,13 @@
-package llarmvp
+package version
 
 var None = Version{"none"}
 
 type Version struct {
 	Ver string
+}
+
+func From(ver string) Version {
+	return Version{ver}
 }
 
 func (v1 Version) Equal(v2 Version) bool {

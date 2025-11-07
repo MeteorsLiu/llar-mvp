@@ -1,11 +1,11 @@
 package mvs
 
 import (
-	"github.com/MeteorsLiu/llarmvp"
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
 type MvsVersion struct {
-	llarmvp.Version
+	version.Version
 	PackageName string
 }
 
@@ -13,12 +13,13 @@ type MvsVersion struct {
 // with any exclusions or replacements applied internally.
 type MvsReqs struct {
 	Roots         []MvsVersion
-	ComparatorMap map[string]func(v1, v2 string) int
+	IsMain        func(path string, v version.Version) bool
+	ComparatorMap map[string]func(v1, v2 version.Version) int
 	OnLoadVersion func(MvsVersion) ([]MvsVersion, error)
 }
 
 func (r *MvsReqs) Required(mod MvsVersion) ([]MvsVersion, error) {
-	if mod.Ver == "" {
+	if r.IsMain(mod.PackageName, mod.Version) {
 		// Use the build list as it existed when r was constructed, not the current
 		// global build list.
 		return r.Roots, nil
@@ -37,7 +38,7 @@ func (r *MvsReqs) Required(mod MvsVersion) ([]MvsVersion, error) {
 // versions. The main module (also known as the target) has no version and must
 // be chosen over other versions of the same module in the module dependency
 // graph.
-func (r *MvsReqs) Max(p, v1, v2 string) string {
+func (r *MvsReqs) Max(p string, v1, v2 version.Version) version.Version {
 	if r.cmpVersion(p, v1, v2) < 0 {
 		return v2
 	}
@@ -56,14 +57,14 @@ func (*MvsReqs) Upgrade(m MvsVersion) (MvsVersion, error) {
 // the version "" is considered higher than all other versions.
 // The main module (also known as the target) has no version and must be chosen
 // over other versions of the same module in the module dependency graph.
-func (m *MvsReqs) cmpVersion(p string, v1, v2 string) int {
-	if v2 == "" {
-		if v1 == "" {
+func (m *MvsReqs) cmpVersion(p string, v1, v2 version.Version) int {
+	if m.IsMain(p, v2) {
+		if m.IsMain(p, v1) {
 			return 0
 		}
 		return -1
 	}
-	if v1 == "" {
+	if m.IsMain(p, v1) {
 		return 1
 	}
 	return m.ComparatorMap[p](v1, v2)

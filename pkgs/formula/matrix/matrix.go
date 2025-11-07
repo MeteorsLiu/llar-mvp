@@ -1,4 +1,4 @@
-package llarmvp
+package matrix
 
 type Matrix struct {
 	Require map[string][]string
