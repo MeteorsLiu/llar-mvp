@@ -1,10 +1,11 @@
-package deps
+package pkg
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
-	"github.com/MeteorsLiu/llarmvp/internal/deps/pkg"
+	"github.com/MeteorsLiu/llarmvp/internal/deps"
 	"github.com/MeteorsLiu/llarmvp/internal/ixgo"
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
@@ -21,12 +22,13 @@ func TestMVSExamples(t *testing.T) {
 
 	t.Log(runner.Dir)
 
-	dep, err := pkg.Parse(filepath.Join(runner.Dir, "versions.json"))
+	dep, err := deps.Parse(filepath.Join(runner.Dir, "versions.json"))
 	if err != nil {
 		t.Log(err)
 		return
 	}
 
-	Tidy(&dep, ixgo, "1.7.18")
+	Tidy(ixgo, &dep)
 
+	fmt.Println(BuildList(ixgo, &dep, "1.7.18"))
 }

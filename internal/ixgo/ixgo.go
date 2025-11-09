@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/MeteorsLiu/llarmvp/internal/deps/pkg"
+	"github.com/MeteorsLiu/llarmvp/internal/deps"
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 	x "github.com/goplus/ixgo"
 
@@ -54,7 +54,7 @@ func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Vers
 		return
 	}
 
-	formulaRootDir := pkg.PackagePathOf(packageName)
+	formulaRootDir := deps.PackagePathOf(packageName)
 
 	var suitableRunner *Runnable
 	maxCanBuild := version.None
@@ -68,6 +68,8 @@ func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Vers
 		}
 		formulaDir := filepath.Dir(path)
 
+		// TODO(MeteorsLiu): cache Runner by querying fromVersion
+		// so that we can skip building SSA.
 		source, err := xbuild.BuildDir(i.ctx, formulaDir)
 		if err != nil {
 			return nil
