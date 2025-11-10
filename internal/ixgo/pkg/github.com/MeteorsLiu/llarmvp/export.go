@@ -24,11 +24,13 @@ func init() {
 		Interfaces: map[string]reflect.Type{},
 		NamedTypes: map[string]reflect.Type{
 			"FormulaApp": reflect.TypeOf((*q.FormulaApp)(nil)).Elem(),
+			"VersionApp": reflect.TypeOf((*q.VersionApp)(nil)).Elem(),
 		},
 		AliasTypes: map[string]reflect.Type{},
 		Vars:       map[string]reflect.Value{},
 		Funcs: map[string]reflect.Value{
 			"Gopt_FormulaApp_Main": reflect.ValueOf(q.Gopt_FormulaApp_Main),
+			"Gopt_VersionApp_Main": reflect.ValueOf(q.Gopt_VersionApp_Main),
 		},
 		TypedConsts: map[string]ixgo.TypedConst{},
 		UntypedConsts: map[string]ixgo.UntypedConst{

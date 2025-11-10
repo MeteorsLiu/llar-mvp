@@ -3,7 +3,6 @@ package pkg
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/MeteorsLiu/llarmvp/internal/deps"
 	"github.com/MeteorsLiu/llarmvp/internal/ixgo"
@@ -45,33 +44,7 @@ func newReqs(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency, currentVersion 
 		if v1.IsNone() && v2.IsNone() {
 			return 0
 		}
-		// slow-path:
-		// select a comparator:
-		// 1. formula v1 can handle with v2, so use v1's comparator
-		// 2. if case 1 dones't meet, check formula v2
-		// 3. if case 1 and 2 dones't meet, that means there's a version gap between v1 and v2.
-		// fallback to string compare
-		runnerV1, err := ixgo.FormulaOf(p, v1)
-		if err != nil {
-			panic(err)
-		}
-		// v1 can handle
-		if runnerV1.Comparator(runnerV1.FromVersion, v2) >= 0 {
-			return runnerV1.Comparator(v1, v2)
-		}
-		runnerV2, err := ixgo.FormulaOf(p, v2)
-		if err != nil {
-			panic(err)
-		}
-		// v2 can handle
-		if runnerV2.Comparator(runnerV2.FromVersion, v1) >= 0 {
-			return runnerV2.Comparator(v1, v2)
-		}
-		// we cannot find a comparator, try to compare with two versions
-		if strings.Compare(v1.Ver, v2.Ver) >= 0 {
-			return runnerV1.Comparator(v1, v2)
-		}
-		return runnerV2.Comparator(v1, v2)
+		return ixgo.ComparatorOf(p)(v1, v2)
 	}
 
 	return &mvsReqs{

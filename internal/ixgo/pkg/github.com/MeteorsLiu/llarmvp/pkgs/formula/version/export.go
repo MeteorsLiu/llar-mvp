@@ -25,6 +25,7 @@ func init() {
 		},
 		Funcs: map[string]reflect.Value{
 			"Compare": reflect.ValueOf(q.Compare),
+			"From":    reflect.ValueOf(q.From),
 		},
 		TypedConsts:   map[string]ixgo.TypedConst{},
 		UntypedConsts: map[string]ixgo.UntypedConst{},

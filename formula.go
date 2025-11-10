@@ -23,7 +23,6 @@ type FormulaApp struct {
 	currentVersion      version.Version
 	internalFromVersion version.Version
 
-	onCompareFn func(a, b version.Version) int
 	OnRequireFn func(fs.FS)
 	onBuildFn   func(matrix.Matrix) (result any, err error)
 	onSourceFn  func(ver version.Version) (sourceDir string, err error)
@@ -75,12 +74,6 @@ func (f *FormulaApp) Version() version.Version {
 	return f.currentVersion
 }
 
-// 提供该Package的版本比较方法，用于处理版本冲突
-// 可选，当用户不提供该函数，默认使用GNU sort -V的算法
-func (f *FormulaApp) Compare(fn func(a, b version.Version) int) {
-	f.onCompareFn = fn
-}
-
 // 声明该Formula能够处理的起始版本号
 func (f *FormulaApp) FromVersion(v string) {
 	f.internalFromVersion = version.Version{v}
@@ -105,17 +98,6 @@ func (f *FormulaApp) OnVersions(fn func() []version.Version) {
 	f.onVersionFn = fn
 }
 
-func (f *FormulaApp) setDefault() {
-	if f.onCompareFn == nil {
-		f.onCompareFn = func(a, b version.Version) int {
-			return version.Compare(a.Ver, b.Ver)
-		}
-	}
-}
-
-func Gopt_FormulaApp_Main(this any) {
-	if f, ok := this.(interface{ setDefault() }); ok {
-		f.setDefault()
-	}
-	this.(interface{ MainEntry() }).MainEntry()
+func Gopt_FormulaApp_Main(this interface{ MainEntry() }) {
+	this.MainEntry()
 }
