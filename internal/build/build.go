@@ -79,7 +79,7 @@ func (t *Task) prepare(dir fs.FS) error {
 		}
 		// set essential value
 		ixgo.SetValue(formula, "internalTempDir", dir)
-		ixgo.SetValue(formula, "currentVersion", t.currentVersion)
+		ixgo.SetValue(formula, "currentVersion", version.From(dep.Version))
 		ixgo.SetValue(formula, "currentMatrix", t.currentMatrix)
 
 		fn := ixgo.ValueOf(formula, "onRequireFn").(func(deps.Graph))
