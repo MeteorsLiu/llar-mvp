@@ -12,7 +12,6 @@ import (
 	"github.com/MeteorsLiu/llarmvp/internal/deps"
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 	x "github.com/goplus/ixgo"
-
 	xbuild "github.com/goplus/ixgo/xgobuild"
 )
 
@@ -39,11 +38,12 @@ type Formula struct {
 }
 
 func NewIXGoCompiler() *IXGoCompiler {
-	return &IXGoCompiler{
+	i := &IXGoCompiler{
 		ctx:             x.NewContext(x.SupportMultipleInterp),
 		runnerCache:     make(map[packageKey]*Formula),
 		comparatorCache: make(map[string]func(a version.Version, b version.Version) int),
 	}
+	return i
 }
 
 func (i *IXGoCompiler) comparatorOf(rootDir string) func(a, b version.Version) int {
@@ -51,20 +51,28 @@ func (i *IXGoCompiler) comparatorOf(rootDir string) func(a, b version.Version) i
 	if len(matches) == 0 {
 		return nil
 	}
+	lookup := i.ctx.Lookup
+	defer func() {
+		i.ctx.Lookup = lookup
+	}()
+	i.ctx.Lookup = func(_, path string) (dir string, found bool) {
+		return newGoModDriver().Lookup(rootDir, path)
+	}
 	source, err := xbuild.BuildDir(i.ctx, rootDir)
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
-	pkg, err := i.ctx.LoadFile("main.go", source)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	interp, err := i.ctx.NewInterp(pkg)
+	pkgs, err := i.ctx.LoadFile("main.go", source)
 	if err != nil {
 		return nil
 	}
+
+	interp, err := i.ctx.NewInterp(pkgs)
+	if err != nil {
+		return nil
+	}
+	interp.RunInit()
+
 	for _, formula := range matches {
 		name := strings.TrimSuffix(filepath.Base(formula), "_version.gox")
 
@@ -94,6 +102,7 @@ func (i *IXGoCompiler) ComparatorOf(packageName string) func(a, b version.Versio
 	}
 	cmp := i.comparatorOf(deps.PackagePathOf(packageName))
 	if cmp == nil {
+		fmt.Printf("%s use default comparator\n", packageName)
 		cmp = func(a, b version.Version) int {
 			return version.Compare(a.Ver, b.Ver)
 		}
