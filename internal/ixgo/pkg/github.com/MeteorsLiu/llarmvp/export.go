@@ -16,13 +16,17 @@ func init() {
 		Name: "llarmvp",
 		Path: "github.com/MeteorsLiu/llarmvp",
 		Deps: map[string]string{
+			"github.com/MeteorsLiu/llarmvp/internal/deps":        "deps",
 			"github.com/MeteorsLiu/llarmvp/pkgs/formula/gsh":     "gsh",
 			"github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix":  "matrix",
 			"github.com/MeteorsLiu/llarmvp/pkgs/formula/version": "version",
 			"io/fs": "fs",
 		},
-		Interfaces: map[string]reflect.Type{},
+		Interfaces: map[string]reflect.Type{
+			"BasicFormula": reflect.TypeOf((*q.BasicFormula)(nil)).Elem(),
+		},
 		NamedTypes: map[string]reflect.Type{
+			"Artifact":   reflect.TypeOf((*q.Artifact)(nil)).Elem(),
 			"FormulaApp": reflect.TypeOf((*q.FormulaApp)(nil)).Elem(),
 			"VersionApp": reflect.TypeOf((*q.VersionApp)(nil)).Elem(),
 		},

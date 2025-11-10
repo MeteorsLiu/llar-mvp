@@ -1,18 +1,66 @@
 package llarmvp
 
 import (
+	"fmt"
 	"io/fs"
 
+	"github.com/MeteorsLiu/llarmvp/internal/deps"
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/gsh"
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix"
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
+
+type BasicFormula interface {
+	// 返回当前PackageName
+	PackageName__0() string
+	// 必填，声明当前LLAR Package Name，格式为：owner/repo，见下方例子
+	PackageName__1(name string)
+	// 返回当前描述
+	Desc__0() string
+
+	// 可选，添加Package Homepage页面
+	Desc__1(desc string)
+	// 返回当前Package Homepage URL
+	Homepage__0() string
+	// 可选，添加Package Homepage URL
+	Homepage__1(homepage string)
+
+	// 返回当前Package的构建矩阵
+	Matrix__0() matrix.Matrix
+
+	// 声明Package的构建矩阵
+	Matrix__1(mrx matrix.Matrix)
+
+	// 返回当前Package的版本
+	Version() version.Version
+}
+
+type Artifact struct {
+	BasicFormula
+	Dir  string
+	Prev *Artifact
+	Link func(compileArgs []string) []string
+}
+
+func (a *Artifact) String() string {
+	if a == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("Artifact: Formula: Name: %s Version: %s Matrix: %v Dir: %v",
+		a.PackageName__0(),
+		a.Version().Ver,
+		a.Matrix__0(),
+		a.Dir,
+	)
+}
 
 const GopPackage = true
 
 type FormulaApp struct {
 	gsh.App
 
+	lastArtifact        *Artifact
+	internalTempDir     fs.FS
 	internalPackageName string
 	internalDesc        string
 	internalHomepage    string
@@ -23,10 +71,18 @@ type FormulaApp struct {
 	currentVersion      version.Version
 	internalFromVersion version.Version
 
-	OnRequireFn func(fs.FS)
-	onBuildFn   func(matrix.Matrix) (result any, err error)
+	onRequireFn func(deps.Graph)
+	onBuildFn   func() (result *Artifact, err error)
 	onSourceFn  func(ver version.Version) (sourceDir string, err error)
 	onVersionFn func() []version.Version
+}
+
+func (f *FormulaApp) Dir() fs.FS {
+	return f.internalTempDir
+}
+
+func (f *FormulaApp) LastArtifact() *Artifact {
+	return f.lastArtifact
 }
 
 // 返回当前PackageName
@@ -61,12 +117,12 @@ func (f *FormulaApp) Homepage__1(homepage string) {
 
 // 返回当前Package的构建矩阵
 func (f *FormulaApp) Matrix__0() matrix.Matrix {
-	return f.declaredMatrix
+	return f.currentMatrix
 }
 
 // 声明Package的构建矩阵
 func (f *FormulaApp) Matrix__1(mrx matrix.Matrix) {
-	f.currentMatrix = mrx
+	f.declaredMatrix = mrx
 }
 
 // 返回当前Package的版本
@@ -79,12 +135,12 @@ func (f *FormulaApp) FromVersion(v string) {
 	f.internalFromVersion = version.Version{v}
 }
 
-func (f *FormulaApp) OnRequire(fn func(dir fs.FS)) {
-	f.OnRequireFn = fn
+func (f *FormulaApp) OnRequire(fn func(deps.Graph)) {
+	f.onRequireFn = fn
 }
 
 // 声明构建
-func (f *FormulaApp) OnBuild(fn func(matrix.Matrix) (any, error)) {
+func (f *FormulaApp) OnBuild(fn func() (*Artifact, error)) {
 	f.onBuildFn = fn
 }
 

@@ -33,7 +33,10 @@ type formulaClassfile interface {
 }
 
 type Formula struct {
+	pkg         *xbuild.Package
+	structName  string
 	Dir         string
+	PackageName string
 	FromVersion version.Version
 }
 
@@ -86,7 +89,7 @@ func (i *IXGoCompiler) comparatorOf(rootDir string) func(a, b version.Version) i
 
 		val.Interface().(formulaClassfile).Main()
 
-		comparator := valueOf(elem, "onCompareFn").(func(a, b version.Version) int)
+		comparator := ValueOf(elem, "onCompareFn").(func(a, b version.Version) int)
 
 		if comparator != nil {
 			return comparator
@@ -109,6 +112,35 @@ func (i *IXGoCompiler) ComparatorOf(packageName string) func(a, b version.Versio
 	}
 	i.comparatorCache[packageName] = cmp
 	return cmp
+}
+
+func (f *Formula) Elem(ixgo *IXGoCompiler) (reflect.Value, error) {
+	source, err := f.pkg.ToSource()
+	if err != nil {
+		return reflect.Value{}, err
+	}
+	pkg, err := ixgo.ctx.LoadFile("main.go", source)
+	if err != nil {
+		return reflect.Value{}, err
+
+	}
+	interp, err := ixgo.ctx.NewInterp(pkg)
+	if err != nil {
+		return reflect.Value{}, err
+
+	}
+	err = interp.RunInit()
+	if err != nil {
+		return reflect.Value{}, err
+	}
+	typ, ok := interp.GetType(f.structName)
+	if !ok {
+		return reflect.Value{}, fmt.Errorf("failed to get struct name: %s", f.structName)
+	}
+	elem := reflect.New(typ)
+	elem.Interface().(formulaClassfile).Main()
+
+	return elem.Elem(), nil
 }
 
 func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Version) (runner *Formula, err error) {
@@ -144,27 +176,46 @@ func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Vers
 			return err
 		}
 
+		var structName string
+		var packageName string
 		fromVersion := version.None
 
 		ast.Inspect(formulaAst, func(n ast.Node) bool {
 			switch c := n.(type) {
 			case *ast.CallExpr:
-				if fn, ok := c.Fun.(*ast.SelectorExpr); ok {
-					if fn.Sel.Name == "FromVersion" {
-						if len(c.Args) == 0 {
-							panic("invalid FromVersion argument")
+				switch fn := c.Fun.(type) {
+				case *ast.SelectorExpr:
+					switch fn.Sel.Name {
+					case "FromVersion":
+						var ver string
+						ver, err = parseCallArg(packageName, fn.Sel.Name, c)
+						if err != nil {
+							return false
 						}
-						arg, ok := c.Args[0].(*ast.BasicLit)
-						if !ok {
-							panic("invalid FromVersion argument")
+						fromVersion = version.From(ver)
+					case "PackageName__1":
+						var formulaPkgName string
+						formulaPkgName, err = parseCallArg(packageName, fn.Sel.Name, c)
+						if err != nil {
+							return false
 						}
-						fromVersion = version.From(strings.Trim(strings.Trim(arg.Value, `"`), "`"))
-						return false
+						packageName = formulaPkgName
+					}
+				case *ast.Ident:
+					if fn.Name == "new" {
+						structName, err = parseCallArg(packageName, fn.Name, c)
+						if err != nil {
+							return false
+						}
 					}
 				}
 			}
 			return true
 		})
+
+		if err != nil {
+			return fs.SkipAll
+		}
 
 		if fromVersion.IsNone() {
 			fmt.Printf("%s: FromVersion is not found", formulaDir)
@@ -174,7 +225,10 @@ func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Vers
 		if comparator(packageVersion, fromVersion) >= 0 {
 			if maxCanBuild.IsNone() {
 				suitableRunner = &Formula{
+					pkg:         pkg,
+					structName:  structName,
 					Dir:         formulaDir,
+					PackageName: packageName,
 					FromVersion: fromVersion,
 				}
 				maxCanBuild = fromVersion
@@ -183,7 +237,10 @@ func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Vers
 			if comparator(fromVersion, maxCanBuild) >= 0 {
 				maxCanBuild = fromVersion
 				suitableRunner = &Formula{
+					pkg:         pkg,
+					structName:  structName,
 					Dir:         formulaDir,
+					PackageName: packageName,
 					FromVersion: fromVersion,
 				}
 			}
@@ -207,13 +264,41 @@ func init() {
 	xbuild.RegisterClassFileType("_llar.gox", "FormulaApp", nil, "github.com/MeteorsLiu/llarmvp")
 }
 
-func unexportValueOf(field reflect.Value) any {
-	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
+func unexportValueOf(field reflect.Value) reflect.Value {
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
 }
 
-func valueOf(elem reflect.Value, name string) any {
+func ValueOf(elem reflect.Value, name string) any {
 	if ast.IsExported(name) {
 		return elem.FieldByName(name).Elem().Interface()
 	}
-	return unexportValueOf(elem.FieldByName(name))
+	return unexportValueOf(elem.FieldByName(name)).Interface()
+}
+
+func SetValue(elem reflect.Value, name string, value any) {
+	if ast.IsExported(name) {
+		elem.FieldByName(name).Elem().Set(reflect.ValueOf(value))
+	}
+	unexportValueOf(elem.FieldByName(name)).Set(reflect.ValueOf(value))
+}
+
+func parseCallArg(pkgName, fnName string, c *ast.CallExpr) (string, error) {
+	if len(c.Args) == 0 {
+		return "", fmt.Errorf("%s invalid argument: %s", pkgName, fnName)
+	}
+	var argResult string
+	switch arg := c.Args[0].(type) {
+	case *ast.BasicLit:
+		argResult = strings.Trim(strings.Trim(arg.Value, `"`), "`")
+		if argResult == "" {
+			return "", fmt.Errorf("%s empty args: %s", pkgName, fnName)
+		}
+	case *ast.Ident:
+		argResult = arg.Name
+		if argResult == "" {
+			return "", fmt.Errorf("%s empty args: %s", pkgName, fnName)
+		}
+	}
+
+	return argResult, nil
 }

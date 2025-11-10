@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/MeteorsLiu/llarmvp/internal/deps"
@@ -10,25 +9,80 @@ import (
 	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
-func newReqs(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency, currentVersion string) *mvsReqs {
-	mainPackage := mvs.MvsVersion{version.From(currentVersion), p.PackageName}
+type Deps struct {
+	Pkg         *deps.PackageDependency
+	Graph       *mvs.Graph
+	cacheResult []deps.Dependency
+	override    map[string][]deps.Dependency
+}
+
+func NewDeps(p *deps.PackageDependency) *Deps {
+	return &Deps{Pkg: p, override: make(map[string][]deps.Dependency)}
+}
+
+func (p *Deps) Require(packageName string, deps []deps.Dependency) {
+	p.override[packageName] = deps
+	p.cacheResult = nil
+}
+
+func (p *Deps) RequiredBy(packageName string, version version.Version) ([]deps.Dependency, bool) {
+	reqs, ok := p.Graph.RequiredBy(mvs.MvsVersion{version, packageName})
+	if !ok {
+		return nil, ok
+	}
+	var ret []deps.Dependency
+
+	for _, dep := range reqs {
+		ret = append(ret, deps.Dependency{PackageName: dep.PackageName, Version: dep.Ver})
+	}
+
+	return ret, true
+}
+
+func formulaPackageNameOf(ixgo *ixgo.IXGoCompiler, packageName string, packageVersion version.Version) string {
+	runner, err := ixgo.FormulaOf(packageName, packageVersion)
+	if err != nil {
+		panic(err)
+	}
+	return runner.PackageName
+}
+
+func (p *Deps) reqs(ixgo *ixgo.IXGoCompiler, currentVersion string) *mvsReqs {
+	ver := version.From(currentVersion)
+	mainPackage := mvs.MvsVersion{ver, formulaPackageNameOf(ixgo, p.Pkg.PackageName, ver)}
 
 	var roots []mvs.MvsVersion
 
-	for _, dep := range p.Dependencies {
-		roots = append(roots, mvs.MvsVersion{version.From(dep.Version), dep.PackageName})
+	mainDeps := p.override[p.Pkg.PackageName]
+
+	if mainDeps == nil {
+		mainDeps = p.Pkg.Dependencies
 	}
+
+	for _, dep := range mainDeps {
+		depVer := version.From(dep.Version)
+		roots = append(roots, mvs.MvsVersion{depVer, formulaPackageNameOf(ixgo, dep.PackageName, depVer)})
+	}
+
 	onLoad := func(mv mvs.MvsVersion) (ret []mvs.MvsVersion, err error) {
-		subRunner, err := ixgo.FormulaOf(mv.PackageName, mv.Version)
+		if deps, ok := p.override[mv.PackageName]; ok {
+			for _, dep := range deps {
+				depVer := version.From(dep.Version)
+				ret = append(ret, mvs.MvsVersion{depVer, formulaPackageNameOf(ixgo, dep.PackageName, depVer)})
+			}
+			return
+		}
+		formula, err := ixgo.FormulaOf(mv.PackageName, mv.Version)
 		if err != nil {
 			return
 		}
-		subDeps, err := deps.Parse(filepath.Join(subRunner.Dir, "versions.json"))
+		subDeps, err := deps.Parse(filepath.Join(formula.Dir, "versions.json"))
 		if err != nil {
 			return
 		}
 		for _, dep := range subDeps.Dependencies {
-			ret = append(ret, mvs.MvsVersion{version.From(dep.Version), dep.PackageName})
+			depVer := version.From(dep.Version)
+			ret = append(ret, mvs.MvsVersion{depVer, formulaPackageNameOf(ixgo, dep.PackageName, depVer)})
 		}
 		return
 	}
@@ -53,23 +107,32 @@ func newReqs(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency, currentVersion 
 		roots:         roots,
 		onLoadVersion: onLoad,
 		isMain: func(path string, v version.Version) bool {
-			return path == p.PackageName && v.Equal(mainPackage.Version)
+			return path == mainPackage.PackageName && v.Equal(mainPackage.Version)
 		},
 	}
 }
 
-func Tidy(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency) {
-	reqs := newReqs(ixgo, p, "")
-	fmt.Println(mvs.Req(reqs.main, []string{reqs.main.PackageName}, reqs))
+func Tidy(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency, currentVersion string) {
+	// reqs := newReqs(ixgo, p, currentVersion)
 
 }
 
-func BuildList(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency, currentVersion string) ([]deps.Dependency, error) {
-	reqs := newReqs(ixgo, p, currentVersion)
+func (d *Deps) BuildList(ixgo *ixgo.IXGoCompiler, currentVersion string) ([]deps.Dependency, error) {
+	if d.cacheResult != nil {
+		return d.cacheResult, nil
+	}
+	var err error
+	d.Graph, d.cacheResult, err = d.buildList(ixgo, currentVersion)
 
-	mvsDeps, err := mvs.BuildList([]mvs.MvsVersion{reqs.main}, reqs)
+	return d.cacheResult, err
+}
+
+func (d *Deps) buildList(ixgo *ixgo.IXGoCompiler, currentVersion string) (*mvs.Graph, []deps.Dependency, error) {
+	reqs := d.reqs(ixgo, currentVersion)
+
+	graph, mvsDeps, err := mvs.BuildList([]mvs.MvsVersion{reqs.main}, reqs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var dependencies []deps.Dependency
@@ -81,5 +144,5 @@ func BuildList(ixgo *ixgo.IXGoCompiler, p *deps.PackageDependency, currentVersio
 		})
 	}
 
-	return dependencies, nil
+	return graph, dependencies, nil
 }

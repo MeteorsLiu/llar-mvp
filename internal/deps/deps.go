@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )
 
 type Dependency struct {
@@ -20,6 +22,11 @@ const formulaRepo = "/Users/haolan/project/t1/llarformula"
 
 func PackagePathOf(packageName string) (dir string) {
 	return filepath.Join(formulaRepo, packageName)
+}
+
+type Graph interface {
+	Require(packageName string, deps []Dependency)
+	RequiredBy(packageName string, version version.Version) ([]Dependency, bool)
 }
 
 func Parse(path string) (p PackageDependency, err error) {

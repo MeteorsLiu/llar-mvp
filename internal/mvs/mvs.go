@@ -87,11 +87,11 @@ type DowngradeReqs interface {
 // of the list are sorted by path.
 //
 // See https://research.swtch.com/vgo-mvs for details.
-func BuildList(targets []MvsVersion, reqs Reqs) ([]MvsVersion, error) {
+func BuildList(targets []MvsVersion, reqs Reqs) (*Graph, []MvsVersion, error) {
 	return buildList(targets, reqs, nil)
 }
 
-func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVersion, error)) ([]MvsVersion, error) {
+func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVersion, error)) (*Graph, []MvsVersion, error) {
 	cmp := func(p string, v1, v2 version.Version) int {
 		if !reqs.Max(p, v1, v2).Equal(v1) {
 			return -1
@@ -166,7 +166,7 @@ func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVer
 		// 	}
 		// 	return false
 		// }
-		return nil, err
+		return nil, nil, err
 	}
 
 	// The final list is the minimum version of each module found in the graph.
@@ -178,16 +178,16 @@ func buildList(targets []MvsVersion, reqs Reqs, upgrade func(MvsVersion) (MvsVer
 		// See golang.org/issue/31491, golang.org/issue/29773.
 		panic(fmt.Sprintf("mistake: chose versions %+v instead of targets %+v", vs, targets))
 	}
-	return list, nil
+	return g, list, nil
 }
 
 // Req returns the minimal requirement list for the target module,
 // with the constraint that all module paths listed in base must
 // appear in the returned list.
-func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) {
-	list, err := BuildList([]MvsVersion{mainModule}, reqs)
+func Req(mainModule MvsVersion, base []string, reqs Reqs) (*Graph, []MvsVersion, error) {
+	graph, list, err := BuildList([]MvsVersion{mainModule}, reqs)
 	if err != nil {
-		return nil, err
+		return graph, nil, err
 	}
 
 	// Note: Not running in parallel because we assume
@@ -225,7 +225,7 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 	}
 	for _, m := range list {
 		if err := walk(m); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -268,12 +268,12 @@ func Req(mainModule MvsVersion, base []string, reqs Reqs) ([]MvsVersion, error) 
 	sort.Slice(min, func(i, j int) bool {
 		return min[i].PackageName < min[j].PackageName
 	})
-	return min, nil
+	return graph, min, nil
 }
 
 // UpgradeAll returns a build list for the target module
 // in which every module is upgraded to its latest llarmvp.
-func UpgradeAll(target MvsVersion, reqs UpgradeReqs) ([]MvsVersion, error) {
+func UpgradeAll(target MvsVersion, reqs UpgradeReqs) (*Graph, []MvsVersion, error) {
 	return buildList([]MvsVersion{target}, reqs, func(m MvsVersion) (MvsVersion, error) {
 		if m.PackageName == target.PackageName {
 			return target, nil
@@ -285,10 +285,10 @@ func UpgradeAll(target MvsVersion, reqs UpgradeReqs) ([]MvsVersion, error) {
 
 // Upgrade returns a build list for the target module
 // in which the given additional modules are upgraded.
-func Upgrade(target MvsVersion, reqs UpgradeReqs, upgrade ...MvsVersion) ([]MvsVersion, error) {
+func Upgrade(target MvsVersion, reqs UpgradeReqs, upgrade ...MvsVersion) (*Graph, []MvsVersion, error) {
 	list, err := reqs.Required(target)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pathInList := make(map[string]bool, len(list))
@@ -324,7 +324,7 @@ func Upgrade(target MvsVersion, reqs UpgradeReqs, upgrade ...MvsVersion) ([]MvsV
 // The versions to be downgraded may be unreachable from reqs.Latest and
 // reqs.Previous, but the methods of reqs must otherwise handle such versions
 // correctly.
-func Downgrade(target MvsVersion, reqs DowngradeReqs, downgrade ...MvsVersion) ([]MvsVersion, error) {
+func Downgrade(target MvsVersion, reqs DowngradeReqs, downgrade ...MvsVersion) (*Graph, []MvsVersion, error) {
 	// Per https://research.swtch.com/vgo-mvs#algorithm_4:
 	// “To avoid an unnecessary downgrade to E 1.1, we must also add a new
 	// requirement on E 1.2. We can apply Algorithm R to find the minimal set of
@@ -332,9 +332,9 @@ func Downgrade(target MvsVersion, reqs DowngradeReqs, downgrade ...MvsVersion) (
 	//
 	// In order to generate those new requirements, we need to identify versions
 	// for every module in the build list — not just reqs.Required(target).
-	list, err := BuildList([]MvsVersion{target}, reqs)
+	_, list, err := BuildList([]MvsVersion{target}, reqs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	list = list[1:] // remove target
 
@@ -414,7 +414,7 @@ List:
 				//
 				// TODO(golang.org/issue/31730, golang.org/issue/30134):
 				// decode what to do based on the actual error.
-				return nil, err
+				return nil, nil, err
 			}
 			// If the target version is a pseudo-version, it may not be
 			// included when iterating over prior versions using reqs.Previous.
@@ -447,13 +447,13 @@ List:
 	// list with the actual versions of the downgraded modules as selected by MVS,
 	// instead of our initial downgrades.
 	// (See the downhiddenartifact and downhiddencross test cases).
-	actual, err := BuildList([]MvsVersion{target}, &override{
+	_, actual, err := BuildList([]MvsVersion{target}, &override{
 		target: target,
 		list:   downgraded,
 		Reqs:   reqs,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	actualVersion := make(map[string]version.Version, len(actual))
 	for _, m := range actual {
