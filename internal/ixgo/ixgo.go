@@ -61,11 +61,11 @@ func (i *IXGoCompiler) comparatorOf(rootDir string) func(a, b version.Version) i
 		fmt.Println(err)
 		return nil
 	}
+	interp, err := i.ctx.NewInterp(pkg)
+	if err != nil {
+		return nil
+	}
 	for _, formula := range matches {
-		interp, err := i.ctx.NewInterp(pkg)
-		if err != nil {
-			return nil
-		}
 		name := strings.TrimSuffix(filepath.Base(formula), "_version.gox")
 
 		typ, ok := interp.GetType(name)
