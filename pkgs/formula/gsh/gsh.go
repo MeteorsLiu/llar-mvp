@@ -36,12 +36,14 @@ type App struct {
 	fin  io.Reader
 	cout string
 	err  error
+	os   OS
 }
 
 func (p *App) initApp() {
 	p.fin = os.Stdin
 	p.fout = os.Stdout
 	p.ferr = os.Stderr
+	p.os = newIsolatedOS()
 }
 
 // Gop_Env retrieves the value of the environment variable named by the key.
@@ -159,7 +161,7 @@ func (p *App) Output() string {
 }
 
 // Gopt_App_Main is main entry of this classfile.
-func Gopt_App_Main(a interface{ initApp() }) {
-	a.initApp()
+func Gopt_App_Main(a any) {
+	a.(interface{ initApp() }).initApp()
 	a.(interface{ MainEntry() }).MainEntry()
 }

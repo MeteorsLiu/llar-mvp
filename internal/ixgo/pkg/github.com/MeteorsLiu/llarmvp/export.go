@@ -16,6 +16,7 @@ func init() {
 		Name: "llarmvp",
 		Path: "github.com/MeteorsLiu/llarmvp",
 		Deps: map[string]string{
+			"fmt": "fmt",
 			"github.com/MeteorsLiu/llarmvp/internal/deps":        "deps",
 			"github.com/MeteorsLiu/llarmvp/pkgs/formula/gsh":     "gsh",
 			"github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix":  "matrix",

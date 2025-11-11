@@ -19,6 +19,7 @@ package gsh
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -115,6 +116,47 @@ func (p defaultOS) Run(c *exec.Cmd) error {
 	return c.Run()
 }
 
-var Sys OS = defaultOS{}
+var Sys OS = newIsolatedOS()
 
 // -----------------------------------------------------------
+
+type isolatedOS struct {
+	currentDir string
+	tempDir    string
+}
+
+func newIsolatedOS() *isolatedOS {
+	tempDir, err := os.MkdirTemp("", "llar-build*")
+	if err != nil {
+		panic(err)
+	}
+	return &isolatedOS{tempDir: tempDir, currentDir: tempDir}
+}
+
+func (p *isolatedOS) Environ() []string {
+	return os.Environ()
+}
+
+func (p *isolatedOS) ExpandEnv(s string) string {
+	return os.ExpandEnv(s)
+}
+
+func (p *isolatedOS) Getenv(key string) string {
+	return os.Getenv(key)
+}
+
+func (p *isolatedOS) Run(c *exec.Cmd) error {
+	if len(c.Args) > 0 && filepath.Base(c.Args[0]) == "cd" {
+		switch len(c.Args) {
+		case 1:
+			p.currentDir = p.tempDir
+		case 2:
+			newDir := filepath.Join(p.tempDir, c.Args[1])
+			p.currentDir = newDir
+		}
+		return nil
+	}
+	c.Dir = p.currentDir
+	// TODO(MeteorsLiu): Isolated with Docker
+	return c.Run()
+}

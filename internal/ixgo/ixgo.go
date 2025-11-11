@@ -122,8 +122,8 @@ func (f *Formula) Elem(ixgo *IXGoCompiler) (reflect.Value, error) {
 	pkg, err := ixgo.ctx.LoadFile("main.go", source)
 	if err != nil {
 		return reflect.Value{}, err
-
 	}
+	fmt.Println(string(source))
 	interp, err := ixgo.ctx.NewInterp(pkg)
 	if err != nil {
 		return reflect.Value{}, err

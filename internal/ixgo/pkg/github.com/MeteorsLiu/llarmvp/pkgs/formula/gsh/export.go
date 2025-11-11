@@ -18,6 +18,7 @@ func init() {
 		Deps: map[string]string{
 			"bytes":   "bytes",
 			"errors":  "errors",
+			"fmt":     "fmt",
 			"io":      "io",
 			"os":      "os",
 			"os/exec": "exec",

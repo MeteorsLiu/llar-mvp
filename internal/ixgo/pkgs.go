@@ -173,7 +173,6 @@ import (
 	// _ "github.com/goplus/ixgo/pkg/testing/slogtest"
 
 	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp"
-	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp/pkgs/formula/gsh"
 	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp/pkgs/formula/matrix"
 	_ "github.com/MeteorsLiu/llarmvp/internal/ixgo/pkg/github.com/MeteorsLiu/llarmvp/pkgs/formula/version"
 )

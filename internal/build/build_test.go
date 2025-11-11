@@ -13,5 +13,5 @@ func TestBuild(t *testing.T) {
 		return
 	}
 
-	task.Exec()
+	t.Log(task.Exec())
 }

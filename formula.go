@@ -155,5 +155,6 @@ func (f *FormulaApp) OnVersions(fn func() []version.Version) {
 }
 
 func Gopt_FormulaApp_Main(this interface{ MainEntry() }) {
+	gsh.Gopt_App_Main(this)
 	this.MainEntry()
 }
