@@ -58,8 +58,9 @@ func (i *IXGoCompiler) comparatorOf(rootDir string) func(a, b version.Version) i
 	defer func() {
 		i.ctx.Lookup = lookup
 	}()
+	driver := newGoModDriver()
 	i.ctx.Lookup = func(_, path string) (dir string, found bool) {
-		return newGoModDriver().Lookup(rootDir, path)
+		return driver.Lookup(rootDir, path)
 	}
 	source, err := xbuild.BuildDir(i.ctx, rootDir)
 	if err != nil {
@@ -69,7 +70,6 @@ func (i *IXGoCompiler) comparatorOf(rootDir string) func(a, b version.Version) i
 	if err != nil {
 		return nil
 	}
-
 	interp, err := i.ctx.NewInterp(pkgs)
 	if err != nil {
 		return nil
@@ -123,11 +123,9 @@ func (f *Formula) Elem(ixgo *IXGoCompiler) (reflect.Value, error) {
 	if err != nil {
 		return reflect.Value{}, err
 	}
-	fmt.Println(string(source))
 	interp, err := ixgo.ctx.NewInterp(pkg)
 	if err != nil {
 		return reflect.Value{}, err
-
 	}
 	err = interp.RunInit()
 	if err != nil {
@@ -181,32 +179,31 @@ func (i *IXGoCompiler) FormulaOf(packageName string, packageVersion version.Vers
 		fromVersion := version.None
 
 		ast.Inspect(formulaAst, func(n ast.Node) bool {
-			switch c := n.(type) {
-			case *ast.CallExpr:
-				switch fn := c.Fun.(type) {
-				case *ast.SelectorExpr:
-					switch fn.Sel.Name {
-					case "FromVersion":
-						var ver string
-						ver, err = parseCallArg(packageName, fn.Sel.Name, c)
-						if err != nil {
-							return false
-						}
-						fromVersion = version.From(ver)
-					case "PackageName__1":
-						var formulaPkgName string
-						formulaPkgName, err = parseCallArg(packageName, fn.Sel.Name, c)
-						if err != nil {
-							return false
-						}
-						packageName = formulaPkgName
+			c, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			switch fn := c.Fun.(type) {
+			case *ast.SelectorExpr:
+				switch fn.Sel.Name {
+				case "FromVersion":
+					var ver string
+					ver, err = parseCallArg(packageName, fn.Sel.Name, c)
+					if err != nil {
+						return false
 					}
-				case *ast.Ident:
-					if fn.Name == "new" {
-						structName, err = parseCallArg(packageName, fn.Name, c)
-						if err != nil {
-							return false
-						}
+					fromVersion = version.From(ver)
+				case "PackageName__1":
+					packageName, err = parseCallArg(packageName, fn.Sel.Name, c)
+					if err != nil {
+						return false
+					}
+				}
+			case *ast.Ident:
+				if fn.Name == "new" {
+					structName, err = parseCallArg(packageName, fn.Name, c)
+					if err != nil {
+						return false
 					}
 				}
 			}

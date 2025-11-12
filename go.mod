@@ -10,7 +10,10 @@ require (
 	github.com/goplus/mod v0.17.1 // indirect
 	github.com/goplus/reflectx v1.5.0 // indirect
 	github.com/goplus/xgo v1.5.2 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/qiniu/x v1.15.1 // indirect
+	github.com/spf13/cobra v1.10.1 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/timandy/routine v1.1.5 // indirect
 	github.com/visualfc/funcval v0.1.4 // indirect
 	github.com/visualfc/gid v0.3.0 // indirect

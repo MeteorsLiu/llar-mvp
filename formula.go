@@ -77,10 +77,12 @@ type FormulaApp struct {
 	onVersionFn func() []version.Version
 }
 
+// 返回当前配方所在目录
 func (f *FormulaApp) Dir() fs.FS {
 	return f.internalTempDir
 }
 
+// 上一个产物信息
 func (f *FormulaApp) LastArtifact() *Artifact {
 	return f.lastArtifact
 }
